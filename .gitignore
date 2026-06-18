@@ -1,0 +1,9 @@
+venv/
+db.sqlite3
+.mypy_cache/
+.pytest_cache/
+__pycache__/
+*.pyc
+media/
+.gemini/
+*.log

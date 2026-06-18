@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NMS - Entrada de Lotes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Outfit', sans-serif; }
+    </style>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen relative overflow-x-hidden">
+    <div class="absolute w-[500px] h-[500px] rounded-full bg-violet-600/5 blur-[120px] -top-40 -left-40 animate-pulse"></div>
+
+    <header class="border-b border-slate-800/80 bg-slate-900/40 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-6">
+                <span class="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">NMS Fábrica</span>
+                <span class="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full text-xs font-semibold">{{ tenant.corporate_name }}</span>
+                <nav class="hidden md:flex items-center gap-4 text-sm text-slate-400 font-semibold ml-6">
+                    <a href="{% url 'factory_dashboard' %}" class="hover:text-slate-200">Painel</a>
+                    <a href="{% url 'worker_list' %}" class="hover:text-slate-200">Trabalhadores</a>
+                    <a href="{% url 'shipment_list' %}" class="text-slate-100">Lotes Matriz</a>
+                    <a href="{% url 'stock_ledger' %}" class="hover:text-slate-200">Estoque</a>
+                </nav>
+            </div>
+            <div class="flex items-center gap-4">
+                <form method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="text-sm font-semibold text-slate-400 hover:text-slate-200">Sair</button>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 py-10 space-y-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Formulários (Esquerda - 1/3) -->
+            <section class="p-6 bg-slate-900/30 border border-slate-800/80 rounded-2xl h-fit space-y-6">
+                <!-- Abas dos Formulários -->
+                <div class="flex border-b border-slate-800">
+                    <button id="btn-form-lote" onclick="switchFormTab('lote')" class="flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-violet-500 text-violet-400 focus:outline-none">
+                        Novo Lote
+                    </button>
+                    <button id="btn-form-matriz" onclick="switchFormTab('matriz')" class="flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 focus:outline-none">
+                        Nova Matriz
+                    </button>
+                    <button id="btn-form-peca" onclick="switchFormTab('peca')" class="flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 focus:outline-none">
+                        Novo Item
+                    </button>
+                </div>
+
+                <!-- Formulário de Lote -->
+                <div id="form-container-lote" class="space-y-4">
+                    <form method="post" class="space-y-4">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="receive_shipment">
+                        <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider">Informações da Nota / Lote</h3>
+                        {% for field in shipment_form %}
+                        <div class="space-y-2">
+                            <label for="{{ field.id_for_label }}" class="block text-sm font-semibold text-slate-300">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}
+                            <p class="text-xs text-red-400">{{ field.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+
+                        <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mt-6 pt-4 border-t border-slate-800/50">Item de Lote</h3>
+                        {% for field in item_form %}
+                        <div class="space-y-2">
+                            <label for="{{ field.id_for_label }}" class="block text-sm font-semibold text-slate-300">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}
+                            <p class="text-xs text-red-400">{{ field.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+
+                        <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 font-bold text-sm text-white rounded-xl shadow-lg transition mt-4">Registrar Entrada</button>
+                    </form>
+                </div>
+
+                <!-- Formulário de Matriz -->
+                <div id="form-container-matriz" class="hidden space-y-4">
+                    <form method="post" class="space-y-4">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="create_parent_factory">
+                        <h3 class="text-xs font-bold text-violet-400 uppercase tracking-wider">Cadastrar Nova Matriz</h3>
+                        {% for field in parent_factory_form %}
+                        <div class="space-y-2">
+                            <label for="{{ field.id_for_label }}" class="block text-sm font-semibold text-slate-300">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}
+                            <p class="text-xs text-red-400">{{ field.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+
+                        <button type="submit" class="w-full py-2.5 bg-violet-600 hover:bg-violet-500 font-bold text-sm text-white rounded-xl shadow-lg transition mt-4">Salvar Matriz</button>
+                    </form>
+                </div>
+
+                <!-- Formulário de Peça -->
+                <div id="form-container-peca" class="hidden space-y-4">
+                    <form method="post" enctype="multipart/form-data" class="space-y-4">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="create_global_part">
+                        <h3 class="text-xs font-bold text-fuchsia-400 uppercase tracking-wider">Cadastrar Novo Componente</h3>
+                        {% for field in global_part_form %}
+                        <div class="space-y-2">
+                            <label for="{{ field.id_for_label }}" class="block text-sm font-semibold text-slate-300">{{ field.label }}</label>
+                            {% if field.name == 'sku' %}
+                            <div class="relative flex items-center gap-2">
+                                <div class="relative flex-1">
+                                    {{ field }}
+                                </div>
+                                <button type="button" onclick="startScanner()" class="p-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl flex items-center justify-center transition shrink-0" title="Escanear Código de Barras / QR Code">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                </button>
+                            </div>
+                            {% else %}
+                                {{ field }}
+                            {% endif %}
+                            {% if field.errors %}
+                            <p class="text-xs text-red-400">{{ field.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+
+                        <button type="submit" class="w-full py-2.5 bg-fuchsia-600 hover:bg-fuchsia-500 font-bold text-sm text-white rounded-xl shadow-lg transition mt-4">Salvar Componente</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Tabelas (Direita - 2/3) -->
+            <section class="lg:col-span-2 p-6 bg-slate-900/30 border border-slate-800/80 rounded-2xl space-y-6">
+                <!-- Abas das Listagens -->
+                <div class="flex border-b border-slate-800">
+                    <button id="btn-list-lotes" onclick="switchListTab('lotes')" class="flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-violet-500 text-violet-400 focus:outline-none">
+                        Lotes da Matriz
+                    </button>
+                    <button id="btn-list-matrizes" onclick="switchListTab('matrizes')" class="flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 focus:outline-none">
+                        Matrizes Cadastradas
+                    </button>
+                    <button id="btn-list-pecas" onclick="switchListTab('pecas')" class="flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 focus:outline-none">
+                        Catálogo de Peças
+                    </button>
+                </div>
+
+                <!-- Lista de Lotes -->
+                <div id="list-container-lotes" class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-800/80 text-xs text-slate-400 uppercase tracking-wider">
+                                <th class="py-3 px-4 font-semibold">Nº do Lote (Kanban)</th>
+                                <th class="py-3 px-4 font-semibold">Matriz</th>
+                                <th class="py-3 px-4 font-semibold">Peça / Insumo</th>
+                                <th class="py-3 px-4 font-semibold">Esperado</th>
+                                <th class="py-3 px-4 font-semibold text-right">Data de Entrada</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800/50 text-sm text-slate-300">
+                            {% for shipment in shipments %}
+                            <tr class="hover:bg-slate-900/20 transition">
+                                <td class="py-3 px-4 font-mono font-bold text-violet-400">{{ shipment.shipment_number }}</td>
+                                <td class="py-3 px-4 text-slate-200 font-semibold">{{ shipment.parent_factory.name }}</td>
+                                <td class="py-3 px-4">
+                                    {% for item in shipment.matrixshipmentitem_set.all %}
+                                    <div class="text-xs">
+                                        <span class="text-slate-100 font-medium">{{ item.global_part.name }}</span>
+                                        <span class="text-slate-400 font-mono">({{ item.global_part.sku }})</span>
+                                    </div>
+                                    {% endfor %}
+                                </td>
+                                <td class="py-3 px-4">
+                                    {% for item in shipment.matrixshipmentitem_set.all %}
+                                    <span class="text-sm font-semibold text-indigo-400">{{ item.quantity_expected }} pçs</span>
+                                    {% endfor %}
+                                </td>
+                                <td class="py-3 px-4 text-right text-xs text-slate-400">{{ shipment.received_at|date:"d/m/Y H:i" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="py-10 text-center text-slate-500">Nenhum lote recebido.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Lista de Matrizes -->
+                <div id="list-container-matrizes" class="hidden overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-800/80 text-xs text-slate-400 uppercase tracking-wider">
+                                <th class="py-3 px-4 font-semibold">Nome da Matriz</th>
+                                <th class="py-3 px-4 font-semibold">Código de Registro Industrial</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800/50 text-sm text-slate-300">
+                            {% for pf in parent_factories %}
+                            <tr class="hover:bg-slate-900/20 transition">
+                                <td class="py-3 px-4 text-slate-200 font-bold">{{ pf.name }}</td>
+                                <td class="py-3 px-4 font-mono text-violet-400">{{ pf.industry_code }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="2" class="py-10 text-center text-slate-500">Nenhuma matriz cadastrada.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Lista de Peças -->
+                <div id="list-container-pecas" class="hidden overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-800/80 text-xs text-slate-400 uppercase tracking-wider">
+                                <th class="py-3 px-4 font-semibold">Foto</th>
+                                <th class="py-3 px-4 font-semibold">SKU / Código</th>
+                                <th class="py-3 px-4 font-semibold">Nome do Componente</th>
+                                <th class="py-3 px-4 font-semibold">Matriz</th>
+                                <th class="py-3 px-4 font-semibold text-right">Manual / Desenho</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800/50 text-sm text-slate-300">
+                            {% for part in global_parts %}
+                            <tr class="hover:bg-slate-900/20 transition">
+                                <td class="py-3 px-4">
+                                    {% if part.part_photo %}
+                                        <a href="{{ part.part_photo.url }}" target="_blank">
+                                            <img src="{{ part.part_photo.url }}" class="w-10 h-10 object-cover rounded-lg border border-slate-800 hover:border-violet-500 transition">
+                                        </a>
+                                    {% else %}
+                                        <div class="w-10 h-10 bg-slate-950/60 border border-slate-800/50 rounded-lg flex items-center justify-center text-[10px] text-slate-500">
+                                            N/A
+                                        </div>
+                                    {% endif %}
+                                </td>
+                                <td class="py-3 px-4 font-mono font-bold text-violet-400">{{ part.sku }}</td>
+                                <td class="py-3 px-4 text-slate-200">{{ part.name }}</td>
+                                <td class="py-3 px-4 text-xs text-slate-400">
+                                    {% if part.parent_factory %}
+                                        {{ part.parent_factory.name }}
+                                    {% else %}
+                                        <span class="text-red-400 italic">Desconhecida</span>
+                                    {% endif %}
+                                </td>
+                                <td class="py-3 px-4 text-right">
+                                    {% if part.blueprint_file %}
+                                        <a href="{{ part.blueprint_file.url }}" target="_blank" class="px-2.5 py-1 bg-violet-500/10 border border-violet-500/20 text-violet-400 rounded-lg hover:bg-violet-500/20 text-xs font-semibold transition">
+                                            Ver Manual ↗
+                                        </a>
+                                    {% elif part.blueprint_url %}
+                                        <a href="{{ part.blueprint_url }}" target="_blank" class="px-2.5 py-1 bg-violet-500/10 border border-violet-500/20 text-violet-400 rounded-lg hover:bg-violet-500/20 text-xs font-semibold transition">
+                                            Link ↗
+                                        </a>
+                                    {% else %}
+                                        <span class="text-xs text-slate-600">Nenhum</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="py-10 text-center text-slate-500">Nenhuma peça cadastrada.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        function switchFormTab(tab) {
+            document.getElementById('form-container-lote').classList.add('hidden');
+            document.getElementById('form-container-matriz').classList.add('hidden');
+            document.getElementById('form-container-peca').classList.add('hidden');
+
+            document.getElementById('btn-form-lote').className = "flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 focus:outline-none";
+            document.getElementById('btn-form-matriz').className = "flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 focus:outline-none";
+            document.getElementById('btn-form-peca').className = "flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 focus:outline-none";
+
+            if (tab === 'lote') {
+                document.getElementById('form-container-lote').classList.remove('hidden');
+                document.getElementById('btn-form-lote').className = "flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-violet-500 text-violet-400 focus:outline-none";
+            } else if (tab === 'matriz') {
+                document.getElementById('form-container-matriz').classList.remove('hidden');
+                document.getElementById('btn-form-matriz').className = "flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-violet-500 text-violet-400 focus:outline-none";
+            } else if (tab === 'peca') {
+                document.getElementById('form-container-peca').classList.remove('hidden');
+                document.getElementById('btn-form-peca').className = "flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-violet-500 text-violet-400 focus:outline-none";
+            }
+        }
+
+        function switchListTab(tab) {
+            document.getElementById('list-container-lotes').classList.add('hidden');
+            document.getElementById('list-container-matrizes').classList.add('hidden');
+            document.getElementById('list-container-pecas').classList.add('hidden');
+
+            document.getElementById('btn-list-lotes').className = "flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 focus:outline-none";
+            document.getElementById('btn-list-matrizes').className = "flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 focus:outline-none";
+            document.getElementById('btn-list-pecas').className = "flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 focus:outline-none";
+
+            if (tab === 'lotes') {
+                document.getElementById('list-container-lotes').classList.remove('hidden');
+                document.getElementById('btn-list-lotes').className = "flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-violet-500 text-violet-400 focus:outline-none";
+            } else if (tab === 'matrizes') {
+                document.getElementById('list-container-matrizes').classList.remove('hidden');
+                document.getElementById('btn-list-matrizes').className = "flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-violet-500 text-violet-400 focus:outline-none";
+            } else if (tab === 'pecas') {
+                document.getElementById('list-container-pecas').classList.remove('hidden');
+                document.getElementById('btn-list-pecas').className = "flex-1 pb-3 text-xs md:text-sm font-semibold border-b-2 border-violet-500 text-violet-400 focus:outline-none";
+            }
+        }
+
+        let html5QrcodeScanner = null;
+
+        function startScanner() {
+            document.getElementById('scanner-modal').classList.remove('hidden');
+            document.getElementById('scanner-error').classList.add('hidden');
+            
+            // Instanciar o leitor
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+                const skuInput = document.querySelector('input[name="sku"]');
+                if (skuInput) {
+                    skuInput.value = decodedText;
+                }
+                stopScanner();
+            };
+            
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            html5QrcodeScanner.start({ facingMode: "environment" }, config, qrCodeSuccessCallback)
+                .catch(err => {
+                    console.error("Erro ao iniciar a câmera: ", err);
+                    document.getElementById('scanner-error').innerText = "Não foi possível acessar a câmera. Certifique-se de conceder a permissão de câmera.";
+                    document.getElementById('scanner-error').classList.remove('hidden');
+                });
+        }
+
+        function stopScanner() {
+            if (html5QrcodeScanner) {
+                if (html5QrcodeScanner.isScanning) {
+                    html5QrcodeScanner.stop().then(() => {
+                        html5QrcodeScanner.clear();
+                        document.getElementById('scanner-modal').classList.add('hidden');
+                    }).catch(err => {
+                        console.error("Erro ao parar a câmera: ", err);
+                        document.getElementById('scanner-modal').classList.add('hidden');
+                    });
+                } else {
+                    document.getElementById('scanner-modal').classList.add('hidden');
+                }
+            } else {
+                document.getElementById('scanner-modal').classList.add('hidden');
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const controls = document.querySelectorAll("input[type=text], input[type=number], input[type=url], input[type=datetime-local], input[type=file], select");
+            controls.forEach(ctrl => {
+                if (ctrl.type === "file") {
+                    ctrl.className = "w-full px-4 py-1.5 bg-slate-950/80 border border-slate-800 focus:border-violet-500/80 focus:ring-1 focus:ring-violet-500 rounded-xl outline-none transition text-slate-400 text-xs file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-violet-600/10 file:text-violet-400 hover:file:bg-violet-600/20 file:cursor-pointer";
+                } else {
+                    ctrl.className = "w-full px-4 py-2 bg-slate-950/80 border border-slate-800 focus:border-violet-500/80 focus:ring-1 focus:ring-violet-500 rounded-xl outline-none transition text-slate-200 text-sm";
+                }
+            });
+
+            // Set active tabs on page load
+            const activeFormTab = "{{ active_tab|default:'lote' }}";
+            switchFormTab(activeFormTab);
+            
+            if (activeFormTab === 'matriz') {
+                switchListTab('matrizes');
+            } else if (activeFormTab === 'peca') {
+                switchListTab('pecas');
+            }
+        });
+    </script>
+
+    <!-- Modal do Scanner de QR Code / Código de Barras -->
+    <div id="scanner-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl relative">
+            <button onclick="stopScanner()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-200 text-xl font-bold">✕</button>
+            <h3 class="text-lg font-bold text-slate-200">Escanear SKU</h3>
+            <p class="text-xs text-slate-400">Aponte a câmera para o código de barras ou QR code do componente.</p>
+            <div id="reader" class="overflow-hidden rounded-xl bg-slate-950 border border-slate-800" style="width: 100%; min-height: 250px;"></div>
+            <div id="scanner-error" class="text-xs text-red-400 hidden mt-2"></div>
+            <button onclick="stopScanner()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 font-semibold text-sm text-slate-300 rounded-xl transition">Cancelar</button>
+        </div>
+    </div>
+</body>
+</html>

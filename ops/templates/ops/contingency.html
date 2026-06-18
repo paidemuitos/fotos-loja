@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fallback de Contingência</title>
+</head>
+<body>
+    <h1>Acesso por Código Curto</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Acessar</button>
+    </form>
+</body>
+</html>

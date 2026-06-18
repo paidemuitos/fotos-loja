@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NMS - Painel da Fábrica</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen relative overflow-x-hidden">
+    <div class="absolute w-[500px] h-[500px] rounded-full bg-indigo-600/5 blur-[120px] -top-40 -left-40"></div>
+
+    <!-- Top Navigation -->
+    <header class="border-b border-slate-800/80 bg-slate-900/40 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-6">
+                <span class="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">NMS Fábrica</span>
+                <span class="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full text-xs font-semibold">{{ tenant.corporate_name }}</span>
+                <nav class="hidden md:flex items-center gap-4 text-sm text-slate-400 font-semibold ml-6">
+                    <a href="{% url 'factory_dashboard' %}" class="text-slate-100">Painel</a>
+                    <a href="{% url 'worker_list' %}" class="hover:text-slate-200">Trabalhadores</a>
+                    <a href="{% url 'shipment_list' %}" class="hover:text-slate-200">Lotes Matriz</a>
+                    <a href="{% url 'stock_ledger' %}" class="hover:text-slate-200">Estoque</a>
+                </nav>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="text-slate-400 text-sm">Olá, {{ request.user.username }}</span>
+                <form method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="text-sm font-semibold text-slate-400 hover:text-slate-200">Sair</button>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 py-10 space-y-8">
+        <!-- Dashboard Header / Metrics -->
+        <section class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="p-6 bg-slate-900/30 border border-slate-800/80 rounded-2xl">
+                <p class="text-sm text-slate-400 font-semibold mb-2">Trabalhadores Cadastrados</p>
+                <p class="text-3xl font-extrabold text-slate-100">{{ workers_count }}</p>
+            </div>
+
+            <div class="p-6 bg-slate-900/30 border border-slate-800/80 rounded-2xl">
+                <p class="text-sm text-slate-400 font-semibold mb-2">Ordens de Serviço Ativas</p>
+                <p class="text-3xl font-extrabold text-indigo-400">{{ active_orders_count }}</p>
+            </div>
+
+            <div class="p-6 bg-slate-900/30 border border-slate-800/80 rounded-2xl">
+                <p class="text-sm text-slate-400 font-semibold mb-2">Status da Assinatura</p>
+                <p class="text-sm text-slate-400 font-light mt-1">
+                    Ativa até: <strong class="text-slate-100">{{ tenant.subscription_expires_at|date:"d/m/Y" }}</strong>
+                </p>
+            </div>
+
+            <div class="p-6 bg-slate-900/30 border border-slate-800/80 rounded-2xl flex flex-col justify-center">
+                <a href="{% url 'job_order_create' %}" class="w-full text-center py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 font-bold text-sm text-white rounded-xl shadow-lg transition">Nova Ordem de Serviço</a>
+            </div>
+        </section>
+
+        <!-- Stock Summary & Quick Actions -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Stock Summary -->
+            <section class="lg:col-span-1 p-6 bg-slate-900/30 border border-slate-800/80 rounded-2xl space-y-6">
+                <div class="flex items-center justify-between border-b border-slate-800/80 pb-4">
+                    <h2 class="text-xl font-bold text-slate-200">Saldo de Insumos</h2>
+                    <a href="{% url 'stock_ledger' %}" class="text-sm font-semibold text-indigo-400 hover:underline">Ver Extrato</a>
+                </div>
+                <div class="space-y-4">
+                    {% for item in stock_summary %}
+                    <div class="flex items-center justify-between p-3 bg-slate-950/40 border border-slate-800/50 rounded-xl">
+                        <div>
+                            <p class="font-bold text-sm text-slate-200">{{ item.part.name }}</p>
+                            <p class="text-xs text-slate-400 font-mono">{{ item.part.sku }}</p>
+                        </div>
+                        <span class="text-lg font-extrabold {% if item.balance > 0 %}text-emerald-400{% else %}text-slate-500{% endif %}">
+                            {{ item.balance }} pçs
+                        </span>
+                    </div>
+                    {% empty %}
+                    <p class="text-center text-slate-500 text-sm py-4">Nenhum insumo registrado.</p>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <!-- Main Workspace - Job List -->
+            <section class="lg:col-span-2 p-6 bg-slate-900/30 border border-slate-800/80 rounded-2xl space-y-6">
+                <div class="flex items-center justify-between border-b border-slate-800/80 pb-4">
+                    <h2 class="text-xl font-bold text-slate-200">Ordens de Serviço Recentes</h2>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-800/80 text-xs text-slate-400 uppercase tracking-wider">
+                                <th class="py-3 px-4 font-semibold">Código</th>
+                                <th class="py-3 px-4 font-semibold">Trabalhador</th>
+                                <th class="py-3 px-4 font-semibold">Quantidade</th>
+                                <th class="py-3 px-4 font-semibold">Status</th>
+                                <th class="py-3 px-4 font-semibold">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800/50 text-sm text-slate-300">
+                            {% for order in job_orders %}
+                            <tr class="hover:bg-slate-900/20 transition">
+                                <td class="py-3 px-4 font-mono text-violet-400 font-bold">{{ order.short_audit_code }}</td>
+                                <td class="py-3 px-4">{{ order.worker.name }}</td>
+                                <td class="py-3 px-4">{{ order.quantity_assigned }} pçs</td>
+                                <td class="py-3 px-4">
+                                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold
+                                        {% if order.status == 'FINALIZED' %}
+                                            bg-emerald-500/10 border border-emerald-500/20 text-emerald-400
+                                        {% elif order.status == 'ASSIGNED' %}
+                                            bg-slate-500/10 border border-slate-500/20 text-slate-400
+                                        {% else %}
+                                            bg-amber-500/10 border border-amber-500/20 text-amber-400
+                                        {% endif %}">
+                                        {{ order.get_status_display }}
+                                    </span>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <div class="flex items-center gap-2">
+                                        {% if order.status != 'FINALIZED' %}
+                                        <a href="{% url 'job_order_inspect' order.pk %}" class="px-3 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-400 rounded-lg text-xs font-semibold transition">Inspecionar</a>
+                                        {% else %}
+                                        <span class="text-xs text-slate-500">Encerrado</span>
+                                        {% endif %}
+                                        
+                                        {% if order.reusable_qr_code %}
+                                        <a href="{% url 'print_job_qr' order.pk %}" class="px-3 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 rounded-lg text-xs font-semibold transition" title="Reimprimir QR Code">Reimprimir QR</a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="py-10 text-center text-slate-500">Nenhuma ordem de serviço cadastrada para este tenant.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+</body>
+</html>

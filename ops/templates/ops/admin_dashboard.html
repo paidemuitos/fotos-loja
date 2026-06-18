@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NMS - Painel de Controle SaaS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen relative overflow-x-hidden">
+    <div class="absolute w-[500px] h-[500px] rounded-full bg-violet-600/5 blur-[120px] -top-40 -left-40"></div>
+
+    <!-- Top Navigation -->
+    <header class="border-b border-slate-800/80 bg-slate-900/40 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">NMS SaaS</span>
+                <span class="px-2 py-0.5 bg-violet-500/10 border border-violet-500/20 text-violet-400 rounded-full text-xs font-semibold">Superadmin</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="text-slate-400 text-sm">Olá, {{ request.user.username }}</span>
+                <form method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="text-sm font-semibold text-slate-400 hover:text-slate-200">Sair</button>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 py-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Sidebar - CRUD Form -->
+        <section class="lg:col-span-1 p-6 bg-slate-900/50 border border-slate-800/80 rounded-2xl h-fit">
+            <h2 class="text-xl font-bold mb-6 text-slate-200">Nova Subfábrica (Tenant)</h2>
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_tenant">
+                
+                <div class="space-y-2">
+                    <label class="block text-sm text-slate-400 font-semibold">Razão Social</label>
+                    <input type="text" name="corporate_name" required
+                        class="w-full px-4 py-2 bg-slate-950 border border-slate-800 focus:border-violet-500 rounded-xl outline-none text-sm transition">
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-sm text-slate-400 font-semibold">Código Postal (CEP)</label>
+                    <input type="text" name="postal_code" placeholder="430-0911"
+                        class="w-full px-4 py-2 bg-slate-950 border border-slate-800 focus:border-violet-500 rounded-xl outline-none text-sm transition">
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-sm text-slate-400 font-semibold">Província (Prefecture)</label>
+                    <input type="text" name="prefecture" placeholder="Shizuoka-ken"
+                        class="w-full px-4 py-2 bg-slate-950 border border-slate-800 focus:border-violet-500 rounded-xl outline-none text-sm transition">
+                </div>
+
+                <button type="submit"
+                    class="w-full py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 font-bold text-white rounded-xl shadow-lg transition">
+                    Cadastrar Fábrica
+                </button>
+            </form>
+        </section>
+
+        <!-- Main Content - Factory List -->
+        <section class="lg:col-span-2 space-y-6">
+            <div class="flex items-center justify-between">
+                <h2 class="text-2xl font-bold text-slate-200">Fábricas Ativas (Tenants)</h2>
+                <span class="text-sm text-slate-400">{{ tenants.count }} fábricas registradas</span>
+            </div>
+
+            <div class="grid grid-cols-1 gap-4">
+                {% for tenant in tenants %}
+                <div class="p-6 bg-slate-900/30 border border-slate-800/80 rounded-2xl flex items-center justify-between gap-6 hover:border-slate-700/80 transition">
+                    <div class="space-y-1">
+                        <h3 class="text-lg font-bold text-slate-200">{{ tenant.corporate_name }}</h3>
+                        <p class="text-xs text-slate-500">Local: {{ tenant.prefecture }} (CEP: {{ tenant.postal_code }})</p>
+                        <div class="flex items-center gap-2 mt-2">
+                            {% if tenant.is_subscription_active %}
+                                <span class="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full text-xs font-semibold">Ativo</span>
+                            {% else %}
+                                <span class="px-2 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-full text-xs font-semibold">Suspenso</span>
+                            {% endif %}
+                            <span class="text-xs text-slate-400">Expira em: {{ tenant.subscription_expires_at|date:"d/m/Y H:i" }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Creditar Assinatura -->
+                    <form method="post" class="flex items-center gap-2">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="credit_subscription">
+                        <input type="hidden" name="tenant_uuid" value="{{ tenant.id }}">
+                        <input type="number" name="days" value="30" min="1" required
+                            class="w-16 px-2 py-1 bg-slate-950 border border-slate-800 focus:border-violet-500 rounded-lg outline-none text-sm text-center">
+                        <button type="submit"
+                            class="px-3 py-1 bg-violet-600 hover:bg-violet-500 font-semibold text-xs text-white rounded-lg transition">
+                            + Dias
+                        </button>
+                    </form>
+                </div>
+                {% empty %}
+                <div class="p-10 text-center bg-slate-900/30 border border-slate-800/80 border-dashed rounded-2xl text-slate-500">
+                    Nenhuma subfábrica cadastrada no sistema.
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+
+    </main>
+</body>
+</html>

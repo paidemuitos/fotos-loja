@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Painel da Ordem de Serviço</title>
+</head>
+<body>
+    <h1>Ordem de Serviço #{{ job_order.short_audit_code }}</h1>
+    <p>Trabalhador: {{ job_order.worker.name }}</p>
+    <p>Quantidade Alocada: {{ job_order.quantity_assigned }}</p>
+    <p>Status: {{ job_order.get_status_display }}</p>
+</body>
+</html>

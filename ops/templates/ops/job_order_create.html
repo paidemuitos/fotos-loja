@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NMS - Nova Ordem de Serviço</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Outfit', sans-serif; }
+    </style>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen relative overflow-x-hidden">
+    <div class="absolute w-[500px] h-[500px] rounded-full bg-violet-600/5 blur-[120px] -top-40 -left-40 animate-pulse"></div>
+
+    <header class="border-b border-slate-800/80 bg-slate-900/40 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-6">
+                <span class="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">NMS Fábrica</span>
+                <span class="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full text-xs font-semibold">{{ tenant.corporate_name }}</span>
+                <nav class="hidden md:flex items-center gap-4 text-sm text-slate-400 font-semibold ml-6">
+                    <a href="{% url 'factory_dashboard' %}" class="hover:text-slate-200">Painel</a>
+                    <a href="{% url 'worker_list' %}" class="hover:text-slate-200">Trabalhadores</a>
+                    <a href="{% url 'shipment_list' %}" class="hover:text-slate-200">Lotes Matriz</a>
+                    <a href="{% url 'stock_ledger' %}" class="hover:text-slate-200">Estoque</a>
+                </nav>
+            </div>
+            <div class="flex items-center gap-4">
+                <form method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="text-sm font-semibold text-slate-400 hover:text-slate-200">Sair</button>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-3xl mx-auto px-6 py-10">
+        <section class="p-8 bg-slate-900/30 border border-slate-800/80 rounded-2xl space-y-6">
+            <div class="border-b border-slate-800/80 pb-4">
+                <h1 class="text-2xl font-extrabold text-slate-200">Nova Ordem de Serviço Doméstica</h1>
+                <p class="text-xs text-slate-400 font-light mt-1">Aloque componentes para um trabalhador doméstico e associe a um código de rastreamento.</p>
+            </div>
+
+            <form method="post" id="job-order-form" class="space-y-6">
+                {% csrf_token %}
+                <input type="hidden" name="action_generate_print" id="action_generate_print" value="false">
+                
+                {% if form.non_field_errors %}
+                <div class="p-4 bg-rose-950/40 border border-rose-800/60 text-rose-300 rounded-lg text-sm">
+                    {{ form.non_field_errors.0 }}
+                </div>
+                {% endif %}
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {% for field in form %}
+                    <div class="space-y-2 {% if field.name == 'matrix_shipment_item' %}md:col-span-2{% endif %}">
+                        <label for="{{ field.id_for_label }}" class="block text-sm font-semibold text-slate-300">{{ field.label }}</label>
+                        {% if field.name == 'reusable_qr_code' %}
+                        <div class="relative flex items-center gap-2">
+                            <div class="relative flex-1">
+                                {{ field }}
+                            </div>
+                            <button type="button" onclick="startScanner()" class="p-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl flex items-center justify-center transition shrink-0" title="Escanear Cartão QR Code">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                            </button>
+                        </div>
+                        {% elif field.name == 'matrix_shipment_item' %}
+                            <div class="hidden">
+                                {{ field }}
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-2" id="shipment-items-grid">
+                                {% for data in shipment_items_data %}
+                                <div class="relative p-4 rounded-xl border transition cursor-pointer select-none flex flex-col justify-between space-y-3
+                                    {% if data.remaining_quantity <= 0 %}
+                                        bg-slate-900/10 border-slate-900/40 opacity-40 cursor-not-allowed
+                                    {% else %}
+                                        bg-slate-900/30 border-slate-800/80 hover:border-violet-500/50 hover:bg-slate-900/50
+                                    {% endif %}"
+                                    {% if data.remaining_quantity > 0 %}
+                                    onclick="selectShipmentItem('{{ data.item.id }}', this)"
+                                    {% endif %}
+                                    data-item-id="{{ data.item.id }}">
+                                    
+                                    <!-- Selected Checkmark -->
+                                    <div class="absolute top-2 right-2 bg-violet-600 text-white rounded-full p-1 shadow-md hidden checkmark">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                        </svg>
+                                    </div>
+
+                                    <div class="flex gap-3">
+                                        <!-- Photo Thumbnail -->
+                                        <div class="w-16 h-16 rounded-lg bg-slate-950 border border-slate-800/80 overflow-hidden flex items-center justify-center shrink-0">
+                                            {% if data.item.global_part.part_photo %}
+                                                <img src="{{ data.item.global_part.part_photo.url }}" alt="{{ data.item.global_part.name }}" class="w-full h-full object-cover" />
+                                            {% else %}
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                                </svg>
+                                            {% endif %}
+                                        </div>
+
+                                        <!-- Details -->
+                                        <div class="space-y-0.5">
+                                            <h4 class="font-bold text-sm text-slate-200 line-clamp-1">{{ data.item.global_part.name }}</h4>
+                                            <p class="text-xs text-slate-400 font-mono">SKU: {{ data.item.global_part.sku }}</p>
+                                            <p class="text-[11px] text-slate-500">Lote: {{ data.item.matrix_shipment.shipment_number }}</p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Bottom Info (Quantities) -->
+                                    <div class="pt-2 border-t border-slate-800/60 flex items-center justify-between text-xs">
+                                        <span class="text-slate-400">Restante:</span>
+                                        <strong class="{% if data.remaining_quantity <= 0 %}text-rose-400{% elif data.remaining_quantity < 50 %}text-amber-400{% else %}text-emerald-400{% endif %}">
+                                            {{ data.remaining_quantity }} pçs
+                                        </strong>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="col-span-full py-6 text-center text-slate-500 border border-dashed border-slate-800 rounded-xl">
+                                    Nenhum item de lote disponível para distribuição no estoque.
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            {{ field }}
+                        {% endif %}
+                        {% if field.errors %}
+                        <p class="text-xs text-rose-400 font-semibold">{{ field.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="flex items-center justify-end gap-4 pt-6 border-t border-slate-800/50">
+                    <a href="{% url 'factory_dashboard' %}" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 font-bold text-sm text-slate-300 rounded-xl transition">Cancelar</a>
+                    <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 font-bold text-sm text-white rounded-xl shadow-lg transition">Criar Ordem</button>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <script>
+        let html5QrcodeScanner = null;
+
+        function startScanner() {
+            document.getElementById('scanner-modal').classList.remove('hidden');
+            document.getElementById('scanner-error').classList.add('hidden');
+            
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+                fetch('/dashboard/resolve-qr/?url=' + encodeURIComponent(decodedText))
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.json().then(err => { throw new Error(err.error || "Erro ao ler QR Code"); });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        const selectEl = document.querySelector('select[name="reusable_qr_code"]');
+                        if (selectEl) {
+                            selectEl.value = data.id;
+                        }
+                        stopScanner();
+                    })
+                    .catch(err => {
+                        console.error("Erro na validação do QR Code: ", err);
+                        document.getElementById('scanner-error').innerText = err.message || "Este QR Code é inválido ou já está em uso.";
+                        document.getElementById('scanner-error').classList.remove('hidden');
+                    });
+            };
+            
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            html5QrcodeScanner.start({ facingMode: "environment" }, config, qrCodeSuccessCallback)
+                .catch(err => {
+                    console.error("Erro ao iniciar câmera: ", err);
+                    document.getElementById('scanner-error').innerText = "Não foi possível acessar a câmera. Certifique-se de conceder a permissão de câmera.";
+                    document.getElementById('scanner-error').classList.remove('hidden');
+                });
+        }
+
+        function stopScanner() {
+            if (html5QrcodeScanner) {
+                if (html5QrcodeScanner.isScanning) {
+                    html5QrcodeScanner.stop().then(() => {
+                        html5QrcodeScanner.clear();
+                        document.getElementById('scanner-modal').classList.add('hidden');
+                    }).catch(err => {
+                        console.error("Erro ao fechar câmera: ", err);
+                        document.getElementById('scanner-modal').classList.add('hidden');
+                    });
+                } else {
+                    document.getElementById('scanner-modal').classList.add('hidden');
+                }
+            } else {
+                document.getElementById('scanner-modal').classList.add('hidden');
+            }
+        }
+
+        function showPrintWarningModal() {
+            document.getElementById('print-warning-modal').classList.remove('hidden');
+        }
+
+        function closePrintWarningModal() {
+            document.getElementById('print-warning-modal').classList.add('hidden');
+        }
+
+        function submitWithGeneratePrint() {
+            document.getElementById('action_generate_print').value = 'true';
+            document.getElementById('job-order-form').submit();
+        }
+
+        function selectShipmentItem(itemId, cardEl) {
+            const selectEl = document.querySelector('select[name="matrix_shipment_item"]');
+            if (selectEl) {
+                selectEl.value = itemId;
+                selectEl.dispatchEvent(new Event('change'));
+            }
+
+            const cards = document.querySelectorAll('#shipment-items-grid [data-item-id]');
+            cards.forEach(card => {
+                card.classList.remove('border-violet-500', 'bg-violet-600/10');
+                card.classList.add('border-slate-800/80', 'bg-slate-900/30');
+                const checkmark = card.querySelector('.checkmark');
+                if (checkmark) {
+                    checkmark.classList.add('hidden');
+                }
+            });
+
+            if (cardEl) {
+                cardEl.classList.remove('border-slate-800/80', 'bg-slate-900/30');
+                cardEl.classList.add('border-violet-500', 'bg-violet-600/10');
+                const checkmark = cardEl.querySelector('.checkmark');
+                if (checkmark) {
+                    checkmark.classList.remove('hidden');
+                }
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const controls = document.querySelectorAll("input, select");
+            controls.forEach(ctrl => {
+                if (ctrl.type !== "hidden") {
+                    ctrl.className = "w-full px-4 py-2.5 bg-slate-950/80 border border-slate-800 focus:border-violet-500/80 focus:ring-1 focus:ring-violet-500 rounded-xl outline-none transition text-slate-200 text-sm";
+                }
+            });
+
+            const form = document.getElementById('job-order-form');
+            if (form) {
+                form.addEventListener('submit', function(event) {
+                    const selectEl = document.querySelector('select[name="reusable_qr_code"]');
+                    const actionGenPrint = document.getElementById('action_generate_print');
+                    
+                    if (actionGenPrint && actionGenPrint.value === 'true') {
+                        return;
+                    }
+                    
+                    if (!selectEl || !selectEl.value) {
+                        event.preventDefault();
+                        showPrintWarningModal();
+                    }
+                });
+            }
+
+            // Restore shipment item card selection if selected
+            const selectShipment = document.querySelector('select[name="matrix_shipment_item"]');
+            if (selectShipment && selectShipment.value) {
+                const selectedCard = document.querySelector(`#shipment-items-grid [data-item-id="${selectShipment.value}"]`);
+                if (selectedCard) {
+                    selectShipmentItem(selectShipment.value, selectedCard);
+                }
+            }
+        });
+    </script>
+
+    <!-- Modal do Scanner de QR Code / Código de Barras -->
+    <div id="scanner-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl relative">
+            <button onclick="stopScanner()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-200 text-xl font-bold">✕</button>
+            <h3 class="text-lg font-bold text-slate-200">Escanear Cartão QR Code</h3>
+            <p class="text-xs text-slate-400">Aponte a câmera para o QR code do cartão plastificado.</p>
+            <div id="reader" class="overflow-hidden rounded-xl bg-slate-950 border border-slate-800" style="width: 100%; min-height: 250px;"></div>
+            <div id="scanner-error" class="text-xs text-red-400 hidden mt-2"></div>
+            <button onclick="stopScanner()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 font-semibold text-sm text-slate-300 rounded-xl transition">Cancelar</button>
+        </div>
+    </div>
+    <!-- Modal de QR Code Requerido / Impressão -->
+    <div id="print-warning-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl relative">
+            <button type="button" onclick="closePrintWarningModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-200 text-xl font-bold">✕</button>
+            <div class="flex items-center gap-3 text-amber-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <h3 class="text-lg font-bold text-slate-200">QR Code Requerido</h3>
+            </div>
+            <p class="text-sm text-slate-300">
+                O campo <strong>QR Code Reutilizável</strong> está vazio. É necessário associar um QR Code a esta ordem de serviço.
+            </p>
+            <p class="text-xs text-slate-400">
+                Deseja gerar um novo código sequencial e enviá-lo para a impressão para continuar? A ordem de serviço será efetivada após o envio.
+            </p>
+            <div class="flex flex-col gap-2 pt-2">
+                <button type="button" onclick="submitWithGeneratePrint()" class="w-full py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 font-bold text-sm text-white rounded-xl shadow-lg transition">
+                    Gerar e Enviar para Impressão
+                </button>
+                <button type="button" onclick="closePrintWarningModal()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 font-semibold text-sm text-slate-300 rounded-xl transition">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

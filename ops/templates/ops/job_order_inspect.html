@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NMS - Inspeção de Qualidade</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Outfit', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen relative overflow-x-hidden">
+    <div class="absolute w-[500px] h-[500px] rounded-full bg-violet-600/5 blur-[120px] -top-40 -left-40 animate-pulse"></div>
+
+    <header class="border-b border-slate-800/80 bg-slate-900/40 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-6">
+                <span class="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">NMS Fábrica</span>
+                <span class="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full text-xs font-semibold">{{ tenant.corporate_name }}</span>
+                <nav class="hidden md:flex items-center gap-4 text-sm text-slate-400 font-semibold ml-6">
+                    <a href="{% url 'factory_dashboard' %}" class="hover:text-slate-200">Painel</a>
+                    <a href="{% url 'worker_list' %}" class="hover:text-slate-200">Trabalhadores</a>
+                    <a href="{% url 'shipment_list' %}" class="hover:text-slate-200">Lotes Matriz</a>
+                    <a href="{% url 'stock_ledger' %}" class="hover:text-slate-200">Estoque</a>
+                </nav>
+            </div>
+            <div class="flex items-center gap-4">
+                <form method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="text-sm font-semibold text-slate-400 hover:text-slate-200">Sair</button>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-3xl mx-auto px-6 py-10">
+        <section class="p-8 bg-slate-900/30 border border-slate-800/80 rounded-2xl space-y-6">
+            <div class="border-b border-slate-800/80 pb-4">
+                <h1 class="text-2xl font-extrabold text-slate-200">Conferência Física & Inspeção</h1>
+                <p class="text-xs text-slate-400 font-light mt-1">
+                    Verificação física das peças retornadas da ordem <strong class="text-violet-400 font-mono">{{ job_order.short_audit_code }}</strong> 
+                    do trabalhador <strong class="text-slate-200">{{ job_order.worker.name }}</strong>.
+                </p>
+            </div>
+
+            <!-- Invariantes e Status da Distribuição -->
+            <div class="p-4 bg-slate-950/60 border border-slate-800/60 rounded-xl grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <span class="text-slate-400 font-medium">Quantidade Distribuída:</span>
+                    <strong id="assigned-qty" class="block text-xl font-extrabold text-slate-100 mt-1">{{ job_order.quantity_assigned }} pçs</strong>
+                </div>
+                <div>
+                    <span class="text-slate-400 font-medium">Peça / SKU:</span>
+                    <strong class="block text-sm font-bold text-slate-200 mt-1">
+                        {{ job_order.matrix_shipment_item.global_part.name }} 
+                        <span class="text-xs text-slate-500 font-mono">({{ job_order.matrix_shipment_item.global_part.sku }})</span>
+                    </strong>
+                </div>
+            </div>
+
+            <form method="post" class="space-y-6">
+                {% csrf_token %}
+                
+                {% if form.non_field_errors %}
+                <div class="p-4 bg-rose-950/40 border border-rose-800/60 text-rose-300 rounded-lg text-sm">
+                    {{ form.non_field_errors.0 }}
+                </div>
+                {% endif %}
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {% for field in form %}
+                    <div class="space-y-2">
+                        <label for="{{ field.id_for_label }}" class="block text-sm font-semibold text-slate-300">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}
+                        <p class="text-xs text-rose-400 font-semibold">{{ field.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Real-time calculation helper box -->
+                <div id="math-helper" class="p-4 bg-indigo-950/20 border border-indigo-900/30 text-indigo-300 rounded-xl text-sm space-y-1">
+                    <p class="font-bold">Validador de Balanço:</p>
+                    <p class="text-xs font-light text-slate-400">
+                        Soma atual (<span id="math-current">0</span>) deve fechar exatamente com a quantidade original (<span id="math-total">{{ job_order.quantity_assigned }}</span>).
+                    </p>
+                    <div id="math-status" class="text-xs font-bold mt-2"></div>
+                </div>
+
+                <div class="flex items-center justify-end gap-4 pt-6 border-t border-slate-800/50">
+                    <a href="{% url 'factory_dashboard' %}" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 font-bold text-sm text-slate-300 rounded-xl transition">Cancelar</a>
+                    <button type="submit" id="btn-submit" class="px-6 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 font-bold text-sm text-white rounded-xl shadow-lg transition">Finalizar Inspeção</button>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const controls = document.querySelectorAll("input");
+            controls.forEach(ctrl => {
+                if (ctrl.type !== "hidden") {
+                    ctrl.className = "w-full px-4 py-2.5 bg-slate-950/80 border border-slate-800 focus:border-violet-500/80 focus:ring-1 focus:ring-violet-500 rounded-xl outline-none transition text-slate-200 text-sm";
+                }
+            });
+
+            const approvedInput = document.getElementById("id_quantity_approved");
+            const refusedInput = document.getElementById("id_quantity_refused");
+            const lostInput = document.getElementById("id_quantity_lost");
+            const assignedQty = parseInt(document.getElementById("assigned-qty").textContent);
+
+            function updateMath() {
+                const approved = parseInt(approvedInput.value) || 0;
+                const refused = parseInt(refusedInput.value) || 0;
+                const lost = parseInt(lostInput.value) || 0;
+                const total = approved + refused + lost;
+
+                document.getElementById("math-current").textContent = total;
+                const statusDiv = document.getElementById("math-status");
+                const submitBtn = document.getElementById("btn-submit");
+
+                if (total === assignedQty) {
+                    statusDiv.textContent = "✓ O balanço fecha com sucesso!";
+                    statusDiv.className = "text-xs font-bold text-emerald-400 mt-2";
+                    submitBtn.disabled = false;
+                    submitBtn.className = "px-6 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 font-bold text-sm text-white rounded-xl shadow-lg transition cursor-pointer";
+                } else {
+                    const diff = assignedQty - total;
+                    statusDiv.textContent = `✗ Balanço divergente! Faltam ou excedem ${Math.abs(diff)} peças.`;
+                    statusDiv.className = "text-xs font-bold text-rose-400 mt-2";
+                    submitBtn.disabled = true;
+                    submitBtn.className = "px-6 py-2.5 bg-slate-800 font-bold text-sm text-slate-500 rounded-xl transition cursor-not-allowed";
+                }
+            }
+
+            [approvedInput, refusedInput, lostInput].forEach(input => {
+                if (input) {
+                    input.addEventListener("input", updateMath);
+                }
+            });
+
+            updateMath();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NMS - Gerenciar Trabalhadores</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Outfit', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen relative overflow-x-hidden">
+    <div class="absolute w-[500px] h-[500px] rounded-full bg-violet-600/5 blur-[120px] -top-40 -left-40 animate-pulse"></div>
+
+    <header class="border-b border-slate-800/80 bg-slate-900/40 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-6">
+                <span class="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">NMS Fábrica</span>
+                <span class="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full text-xs font-semibold">{{ tenant.corporate_name }}</span>
+                <nav class="hidden md:flex items-center gap-4 text-sm text-slate-400 font-semibold ml-6">
+                    <a href="{% url 'factory_dashboard' %}" class="hover:text-slate-200">Painel</a>
+                    <a href="{% url 'worker_list' %}" class="text-slate-100">Trabalhadores</a>
+                    <a href="{% url 'shipment_list' %}" class="hover:text-slate-200">Lotes Matriz</a>
+                    <a href="{% url 'stock_ledger' %}" class="hover:text-slate-200">Estoque</a>
+                </nav>
+            </div>
+            <div class="flex items-center gap-4">
+                <form method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="text-sm font-semibold text-slate-400 hover:text-slate-200">Sair</button>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 py-10 space-y-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Cadastro de Trabalhador -->
+            <section class="p-6 bg-slate-900/30 border border-slate-800/80 rounded-2xl h-fit">
+                <h2 class="text-xl font-bold text-slate-200 mb-6 pb-2 border-b border-slate-800">Cadastrar Trabalhador</h2>
+                <form method="post" class="space-y-4">
+                    {% csrf_token %}
+                    {% for field in form %}
+                    <div class="space-y-2">
+                        <label for="{{ field.id_for_label }}" class="block text-sm font-semibold text-slate-300">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}
+                        <p class="text-xs text-red-400">{{ field.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 font-bold text-sm text-white rounded-xl shadow-lg transition">Salvar Cadastro</button>
+                </form>
+            </section>
+
+            <!-- Listagem e Roteirização -->
+            <section class="lg:col-span-2 p-6 bg-slate-900/30 border border-slate-800/80 rounded-2xl space-y-6">
+                <div class="flex items-center justify-between border-b border-slate-800/80 pb-4">
+                    <h2 class="text-xl font-bold text-slate-200">Rede de Trabalhadores Domésticos</h2>
+                    <button id="btn-route" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 font-bold text-xs text-white rounded-xl shadow-lg transition">
+                        Gerar Rota de Coleta (Google Maps)
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-800/80 text-xs text-slate-400 uppercase tracking-wider">
+                                <th class="py-3 px-4 font-semibold w-10">Rota</th>
+                                <th class="py-3 px-4 font-semibold">Nome</th>
+                                <th class="py-3 px-4 font-semibold">Telefone</th>
+                                <th class="py-3 px-4 font-semibold">Endereço</th>
+                                <th class="py-3 px-4 font-semibold text-right">Geolocalização</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800/50 text-sm text-slate-300">
+                            {% for worker in workers %}
+                            <tr class="hover:bg-slate-900/20 transition">
+                                <td class="py-3 px-4 text-center">
+                                    {% if worker.geolocation %}
+                                    <input type="checkbox" name="select-worker" value="{{ worker.id }}" class="w-4 h-4 rounded border-slate-800 bg-slate-950 text-indigo-600 focus:ring-indigo-500">
+                                    {% else %}
+                                    <span class="text-xs text-slate-600 cursor-not-allowed" title="Sem coordenadas">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="py-3 px-4 font-bold text-slate-200">{{ worker.name }}</td>
+                                <td class="py-3 px-4">{{ worker.phone }}</td>
+                                <td class="py-3 px-4 text-slate-400 text-xs">{{ worker.address_line }}</td>
+                                <td class="py-3 px-4 text-right font-mono text-xs text-slate-400">
+                                    {% if worker.geolocation %}
+                                    {{ worker.geolocation }}
+                                    {% else %}
+                                    <span class="text-rose-500/80 font-semibold">Pendente</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="py-10 text-center text-slate-500">Nenhum trabalhador cadastrado.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        // Custom classes styling for Form fields
+        document.addEventListener("DOMContentLoaded", () => {
+            const inputs = document.querySelectorAll("input[type=text], input[type=number]");
+            inputs.forEach(input => {
+                input.className = "w-full px-4 py-2 bg-slate-950/80 border border-slate-800 focus:border-violet-500/80 focus:ring-1 focus:ring-violet-500 rounded-xl outline-none transition text-slate-200 text-sm";
+            });
+
+            // Route builder logic
+            document.getElementById("btn-route").addEventListener("click", () => {
+                const checkedCheckboxes = document.querySelectorAll("input[name=select-worker]:checked");
+                if (checkedCheckboxes.length === 0) {
+                    alert("Por favor, selecione pelo menos um trabalhador com geolocalização.");
+                    return;
+                }
+                const ids = Array.from(checkedCheckboxes).map(cb => cb.value).join(",");
+                window.open(`{% url 'driver_route_view' %}?workers=${ids}`, "_blank");
+            });
+        });
+    </script>
+</body>
+</html>
